@@ -67,26 +67,6 @@
           <div id="embed-downloads" class="downloads"></div>
         </div>
       </fieldset>
-    </div>
-
-    <div id="panel-extract" class="panel">
-      <fieldset class="group">
-        <legend>Input</legend>
-
-        <div class="row">
-          <label class="lbl">Encoded images</label>
-          <input id="files-encoded" class="inp" type="file" accept="image/*" multiple />
-        </div>
-
-        <div class="row">
-          <label class="lbl">Encryption key (if needed)</label>
-          <input id="dec-key" class="inp" type="text" placeholder="base64 key (must match embed key)" />
-        </div>
-
-        <div class="row">
-          <label class="lbl">Output filename</label>
-          <input id="out-filename" class="inp" type="text" value="extracted.bin" />
-        </div>
       </fieldset>
             <fieldset class="group">
         <legend>Capacity</legend>
@@ -117,6 +97,28 @@
         </div>
       </fieldset>
       <fieldset class="group">
+      
+    </div>
+  
+    <div id="panel-extract" class="panel">
+      <fieldset class="group">
+        <legend>Input</legend>
+
+        <div class="row">
+          <label class="lbl">Encoded images</label>
+          <input id="files-encoded" class="inp" type="file" accept="image/*" multiple />
+        </div>
+
+        <div class="row">
+          <label class="lbl">Encryption key (if needed)</label>
+          <input id="dec-key" class="inp" type="text" placeholder="base64 key (must match embed key)" />
+        </div>
+
+        <div class="row">
+          <label class="lbl">Output filename</label>
+          <input id="out-filename" class="inp" type="text" value="extracted.bin" />
+        </div>
+      
         <legend>Actions</legend>
         <div class="row">
           <button id="btn-extract" class="btn primary" type="button">Extract → Download File</button>
