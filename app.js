@@ -21,6 +21,123 @@ function log(msg){
 }
 
 function clearLog(){ logEl.textContent = ""; }
+// -------------------------
+// Capacity Helpers
+// -------------------------
+function fmtBytes(n){
+  if (!Number.isFinite(n)) return "—";
+  const units = ["B","KB","MB","GB"];
+  let v = n;
+  let u = 0;
+  while (v >= 1024 && u < units.length - 1){
+    v /= 1024;
+    u++;
+  }
+  const s = (u === 0) ? String(Math.floor(v)) : v.toFixed(2);
+  return `${s} ${units[u]} (${n} bytes)`;
+}
+
+function setStatus(el, text, cls){
+  el.textContent = text;
+  el.classList.remove("good","bad","warn");
+  if (cls) el.classList.add(cls);
+}
+
+async function updateCapacityPanel(){
+  const payloadFile = $("file-payload").files[0] || null;
+  const carriers = Array.from($("files-carriers").files || []);
+
+  const elCarriers = $("cap-carriers");
+  const elOverhead = $("cap-overhead");
+  const elUsable = $("cap-usable");
+  const elPayload = $("cap-payload");
+  const elVerdict = $("cap-verdict");
+
+  if (carriers.length === 0){
+    setStatus(elCarriers, "No images selected.", "warn");
+    setStatus(elOverhead, "—");
+    setStatus(elUsable, "—");
+    setStatus(elPayload, payloadFile ? fmtBytes(payloadFile.size) : "—");
+    setStatus(elVerdict, "—");
+    return;
+  }
+
+  // Compute capacities per carrier (bytes) and total usable payload after per-image header
+  let totalCap = 0;
+  let totalRoom = 0;
+  const per = [];
+
+  for (const imgFile of carriers){
+    try{
+      const { img } = await loadImageDataFromFile(imgFile);
+      const cap = capacityBytesFromImageData(img);
+      const room = cap - HEADER_LEN;
+      totalCap += cap;
+      totalRoom += Math.max(0, room);
+      per.push({ name: imgFile.name, cap, room });
+    }catch(e){
+      // If image can't be read, just note it
+      per.push({ name: imgFile.name, cap: 0, room: 0, err: true });
+    }
+  }
+
+  // Header overhead is HEADER_LEN * number of images actually used.
+  // We don't know usage until we know payload size. We'll show "max overhead" and "estimated overhead".
+  const payloadSize = payloadFile ? payloadFile.size : null;
+
+  setStatus(
+    elCarriers,
+    `${carriers.length} image(s) selected • Total raw capacity: ${fmtBytes(totalCap)}`,
+    "good"
+  );
+
+  // If no payload chosen, just show the maximum usable room
+  if (payloadSize == null){
+    setStatus(elOverhead, `${carriers.length} * ${HEADER_LEN} bytes header each (applied per used image)`);
+    setStatus(elUsable, `Up to ${fmtBytes(totalRoom)} usable for payload (no encryption accounted)`);
+    setStatus(elPayload, "No payload selected.", "warn");
+    setStatus(elVerdict, "Pick a payload file to see fit check.", "warn");
+    return;
+  }
+
+  // Estimate how many images will be used given payload size (no encryption accounted here)
+  // (Encryption will expand size, but we'll warn about that.)
+  let remaining = payloadSize;
+  let usedImages = 0;
+
+  for (const p of per){
+    if (p.err) continue;
+    if (remaining <= 0) break;
+    if (p.room <= 0) continue;
+    usedImages++;
+    const take = Math.min(p.room, remaining);
+    remaining -= take;
+  }
+
+  const estOverhead = usedImages * HEADER_LEN;
+  const usable = totalRoom; // max usable across all carriers
+
+  setStatus(elOverhead, `Estimated: ${usedImages} image(s) used → ${fmtBytes(estOverhead)} header overhead`);
+  setStatus(elUsable, `${fmtBytes(usable)} usable payload room across selected images`);
+
+  setStatus(elPayload, fmtBytes(payloadSize), "good");
+
+  if (remaining <= 0){
+    // It fits as plaintext. If encryption key is present, warn that encrypted payload may be larger.
+    const key = $("enc-key").value.trim();
+    if (key){
+      setStatus(
+        elVerdict,
+        "LIKELY FITS (plaintext). Encryption increases size—do a quick test embed to confirm.",
+        "warn"
+      );
+    }else{
+      setStatus(elVerdict, "FITS.", "good");
+    }
+  }else{
+    setStatus(elVerdict, `DOES NOT FIT. Short by ${fmtBytes(remaining)}.`, "bad");
+  }
+}
 
 // -------------------------
 // Base64 helpers (URL-safe tolerant)
@@ -97,6 +214,7 @@ function unpackHeader(headerBytes){
 // -------------------------
 async function cryptoGenerateKeyB64(){
   const raw = crypto.getRandomValues(new Uint8Array(32));
+  await updateCapacityPanel();
   return bytesToBase64(raw);
 }
 
@@ -426,6 +544,10 @@ function wire(){
   $("tab-embed").addEventListener("click", () => setTab("embed"));
   $("tab-extract").addEventListener("click", () => setTab("extract"));
   $("btn-clear-log").addEventListener("click", clearLog);
+  // Capacity live updates
+  $("file-payload").addEventListener("change", () => { updateCapacityPanel(); });
+  $("files-carriers").addEventListener("change", () => { updateCapacityPanel(); });
+  $("enc-key").addEventListener("input", () => { updateCapacityPanel(); });
 
   $("btn-gen-key").addEventListener("click", async () => {
     const key = await cryptoGenerateKeyB64();
@@ -459,6 +581,8 @@ function wire(){
   });
 
   log("Ready.");
+  updateCapacityPanel();
+
 }
 
 wire();
