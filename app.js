@@ -267,6 +267,46 @@ function unpackHeader(headerBytes){
 // -------------------------
 // WebCrypto AES-GCM (optional)
 // -------------------------
+
+async function deriveKeyFromPassphrase(passphrase, saltStr){
+  const enc = new TextEncoder();
+  const passBytes = enc.encode(passphrase);
+  const saltBytes = enc.encode((saltStr || "").trim());
+
+  const baseKey = await crypto.subtle.importKey(
+    "raw",
+    passBytes,
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+
+  // iterations: tweak for speed/security (100k is decent; 200k+ is stronger but slower)
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt: saltBytes, iterations: 150000, hash: "SHA-256" },
+    baseKey,
+    256
+  );
+
+  const keyRaw = new Uint8Array(bits); // 32 bytes
+  const fp = Array.from(keyRaw.slice(0,6)).map(b=>b.toString(16).padStart(2,"0")).join("");
+  return { keyRaw, fingerprint: fp };
+}
+
+async function getEmbedKeyRaw(){
+  const pass = $("enc-pass")?.value || "";
+  if (!pass.trim()) return { keyRaw: null, fingerprint: null };
+  const salt = $("enc-salt")?.value || "stego-tool";
+  return await deriveKeyFromPassphrase(pass, salt);
+}
+
+async function getExtractKeyRaw(){
+  const pass = $("dec-pass")?.value || "";
+  if (!pass.trim()) return { keyRaw: null, fingerprint: null };
+  const salt = $("dec-salt")?.value || "stego-tool";
+  return await deriveKeyFromPassphrase(pass, salt);
+}
+
 async function cryptoGenerateKeyB64(){
   const raw = crypto.getRandomValues(new Uint8Array(32));
   await updateCapacityPanel();
@@ -556,7 +596,7 @@ async function doExtract(){
 
   // Decrypt if needed
   if ((expected.flags & FLAG_ENCRYPTED) !== 0){
-    if (!keyInfo.keyRaw) throw new Error("This payload is encrypted. Provide the key (base64 or key file).");
+    if (!keyInfo.keyRaw) throw new Error("This payload is encrypted. Provide the (pass)key (text, base64 or key file).");
     log(`Decrypting (AES-GCM). Key fingerprint: ${keyInfo.fingerprint}`);
     assembled = await aesGcmDecrypt(assembled, keyInfo.keyRaw);
     log(`Decrypted output: ${assembled.length} bytes`);
@@ -598,52 +638,36 @@ function setTab(which){
   }
 }
 
-async function updateKeyFingerprints(){
-  // embed
-  try{
-    const infoE = await getEmbedKeyRaw();
-    if ($("enc-key-fp")) $("enc-key-fp").textContent = infoE.keyRaw ? `Fingerprint: ${infoE.fingerprint}` : "Fingerprint: —";
-  }catch(e){
-    if ($("enc-key-fp")) $("enc-key-fp").textContent = `Fingerprint: ERROR`;
-  }
 
-  // extract
-  try{
-    const infoD = await getExtractKeyRaw();
-    if ($("dec-key-fp")) $("dec-key-fp").textContent = infoD.keyRaw ? `Fingerprint: ${infoD.fingerprint}` : "Fingerprint: —";
-  }catch(e){
-    if ($("dec-key-fp")) $("dec-key-fp").textContent = `Fingerprint: ERROR`;
-  }
-}
 
 function wire(){
   $("tab-embed").addEventListener("click", () => setTab("embed"));
   $("tab-extract").addEventListener("click", () => setTab("extract"));
   $("btn-clear-log").addEventListener("click", clearLog);
 
+  
+  $("enc-pass")?.addEventListener("input", () => { updateKeyFingerprints(); updateCapacityPanel(); });
+  $("enc-salt")?.addEventListener("input", () => { updateKeyFingerprints(); updateCapacityPanel(); });
+  $("dec-pass")?.addEventListener("input", () => { updateKeyFingerprints(); });
+  $("dec-salt")?.addEventListener("input", () => { updateKeyFingerprints(); });
+
   // ---- Key fingerprint updater (embed + extract) ----
   async function updateKeyFingerprints(){
-    // Embed fingerprint
     try{
-      const infoE = await getEmbedKeyRaw(); // { keyRaw, fingerprint }
-      const el = $("enc-key-fp");
-      if (el) el.textContent = infoE.keyRaw ? `Fingerprint: ${infoE.fingerprint}` : "Fingerprint: —";
-    }catch(e){
-      const el = $("enc-key-fp");
-      if (el) el.textContent = "Fingerprint: ERROR";
+      const e = await getEmbedKeyRaw();
+      if ($("enc-key-fp")) $("enc-key-fp").textContent = e.keyRaw ? `Fingerprint: ${e.fingerprint}` : "Fingerprint: —";
+    }catch{
+      if ($("enc-key-fp")) $("enc-key-fp").textContent = "Fingerprint: ERROR";
     }
-
-    // Extract fingerprint
+  
     try{
-      const infoD = await getExtractKeyRaw();
-      const el = $("dec-key-fp");
-      if (el) el.textContent = infoD.keyRaw ? `Fingerprint: ${infoD.fingerprint}` : "Fingerprint: —";
-    }catch(e){
-      const el = $("dec-key-fp");
-      if (el) el.textContent = "Fingerprint: ERROR";
+      const d = await getExtractKeyRaw();
+      if ($("dec-key-fp")) $("dec-key-fp").textContent = d.keyRaw ? `Fingerprint: ${d.fingerprint}` : "Fingerprint: —";
+    }catch{
+      if ($("dec-key-fp")) $("dec-key-fp").textContent = "Fingerprint: ERROR";
     }
   }
-
+  
   // ---- Capacity live updates ----
   $("file-payload").addEventListener("change", () => { updateCapacityPanel(); });
   $("files-carriers").addEventListener("change", () => { updateCapacityPanel(); });
