@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Stego Tool (Static)</title>
+  <title>Stego Tool</title>
   <link rel="stylesheet" href="style.css" />
   
     <!-- Open Graph / link preview -->
   <meta property="og:title" content="Steganography Tool (Static)" />
-  <meta property="og:description" content="Old-school, utilitarian stego utility. 2-LSB RGB • PNG output • runs fully in-browser." />
+  <meta property="og:description" content="Old-school, utilitarian stego utility. 2-LSB RGB • PNG output" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://mcneds.github.io/YOURREPO/" />
   <meta property="og:image" content="https://mcneds.github.io/YOURREPO/preview.png" />
@@ -16,7 +16,7 @@
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Steganography Tool (Static)" />
-  <meta name="twitter:description" content="Old-school, utilitarian stego utility. Runs fully in-browser." />
+  <meta name="twitter:description" content="Utilitarian stego utility. Steganography lets you hide and encypt files inside of images, the original " />
   <meta name="twitter:image" content="https://mcneds.github.io/YOURREPO/preview.png" />
 
 </head>
@@ -52,6 +52,16 @@
           <label class="lbl">Encryption key (optional)</label>
           <input id="enc-key" class="inp" type="text" placeholder="base64 key (or leave blank)" />
           <button id="btn-gen-key" class="btn" type="button">Generate Key</button>
+        </div>
+        <div class="row">
+          <label class="lbl">Key file (any type)</label>
+          <input id="enc-key-anyfile" class="inp" type="file" />
+        </div>
+        
+        <div class="row">
+          <label class="lbl">Key salt (optional)</label>
+          <input id="enc-key-salt" class="inp" type="text" placeholder="optional extra phrase" />
+          <div id="enc-key-fp" class="status">Fingerprint: —</div>
         </div>
 
         <div class="row">
@@ -124,6 +134,16 @@
         <div class="row">
           <label class="lbl">Encryption key (if needed)</label>
           <input id="dec-key" class="inp" type="text" placeholder="base64 key (must match embed key)" />
+        </div>
+        <div class="row">
+          <label class="lbl">Key file (any type)</label>
+          <input id="dec-key-anyfile" class="inp" type="file" />
+        </div>
+        
+        <div class="row">
+          <label class="lbl">Key salt (optional)</label>
+          <input id="dec-key-salt" class="inp" type="text" placeholder="must match embed salt" />
+          <div id="dec-key-fp" class="status">Fingerprint: —</div>
         </div>
 
         <div class="row">
