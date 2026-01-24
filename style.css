@@ -183,3 +183,13 @@ body{
   border: 2px solid var(--shadow);
   box-shadow: 0 0 0 1px var(--light) inset;
 }
+.status.good{
+  background: #e6ffe6;
+}
+.status.bad{
+  background: #ffe6e6;
+}
+.status.warn{
+  background: #fff4d6;
+}
+
