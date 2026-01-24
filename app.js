@@ -171,6 +171,61 @@ function concatBytes(...parts){
   return out;
 }
 
+async function sha256(bytes){
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return new Uint8Array(digest);
+}
+
+function bytesToHex(bytes){
+  return Array.from(bytes).map(b => b.toString(16).padStart(2,"0")).join("");
+}
+
+async function deriveKeyFromFile(file, saltStr){
+  const fileBytes = new Uint8Array(await file.arrayBuffer());
+  const saltBytes = new TextEncoder().encode((saltStr || "").trim());
+
+  // Hash(fileBytes || saltBytes) to get 32 bytes
+  const combined = new Uint8Array(fileBytes.length + saltBytes.length);
+  combined.set(fileBytes, 0);
+  combined.set(saltBytes, fileBytes.length);
+
+  const keyRaw = await sha256(combined); // 32 bytes
+  const fp = bytesToHex(keyRaw.slice(0, 6)); // 12 hex chars
+  return { keyRaw, fingerprint: fp };
+}
+
+async function getEmbedKeyRaw(){
+  const f = $("enc-key-anyfile")?.files?.[0] || null;
+  if (f){
+    const salt = $("enc-key-salt")?.value || "";
+    return await deriveKeyFromFile(f, salt);
+  }
+
+  // fallback to base64 textbox
+  const b64 = $("enc-key").value.trim();
+  if (!b64) return { keyRaw: null, fingerprint: null };
+  const keyRaw = base64ToBytes(b64);
+  if (keyRaw.length !== 32) throw new Error("Key must decode to 32 bytes (base64).");
+  const fp = bytesToHex(keyRaw.slice(0, 6));
+  return { keyRaw, fingerprint: fp };
+}
+
+async function getExtractKeyRaw(){
+  const f = $("dec-key-anyfile")?.files?.[0] || null;
+  if (f){
+    const salt = $("dec-key-salt")?.value || "";
+    return await deriveKeyFromFile(f, salt);
+  }
+
+  const b64 = $("dec-key").value.trim();
+  if (!b64) return { keyRaw: null, fingerprint: null };
+  const keyRaw = base64ToBytes(b64);
+  if (keyRaw.length !== 32) throw new Error("Key must decode to 32 bytes (base64).");
+  const fp = bytesToHex(keyRaw.slice(0, 6));
+  return { keyRaw, fingerprint: fp };
+}
+
+
 // -------------------------
 // Header pack/unpack
 // -------------------------
@@ -218,19 +273,21 @@ async function cryptoGenerateKeyB64(){
   return bytesToBase64(raw);
 }
 
-async function aesGcmEncrypt(plainBytes, keyB64){
-  const keyRaw = base64ToBytes(keyB64);
-  if (keyRaw.length !== 32) throw new Error("Key must decode to 32 bytes (base64). Use Generate Key.");
+async function aesGcmEncrypt(plainBytes, keyRaw){
+  if (!(keyRaw instanceof Uint8Array) || keyRaw.length !== 32){
+    throw new Error("Encryption key must be 32 bytes.");
+  }
   const key = await crypto.subtle.importKey("raw", keyRaw, "AES-GCM", false, ["encrypt"]);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name:"AES-GCM", iv }, key, plainBytes));
-  // Format: "ENC1" + iv(12) + ciphertext
   return concatBytes(new TextEncoder().encode("ENC1"), iv, ct);
 }
 
-async function aesGcmDecrypt(encBytes, keyB64){
-  const keyRaw = base64ToBytes(keyB64);
-  if (keyRaw.length !== 32) throw new Error("Key must decode to 32 bytes (base64).");
+
+async function aesGcmDecrypt(encBytes, keyRaw){
+  if (!(keyRaw instanceof Uint8Array) || keyRaw.length !== 32){
+    throw new Error("Decryption key must be 32 bytes.");
+  }
   const key = await crypto.subtle.importKey("raw", keyRaw, "AES-GCM", false, ["decrypt"]);
 
   const tag = new TextDecoder().decode(encBytes.slice(0,4));
@@ -244,6 +301,7 @@ async function aesGcmDecrypt(encBytes, keyB64){
     throw new Error("Decryption failed (wrong key or corrupted data).");
   }
 }
+
 
 // -------------------------
 // Image IO helpers
@@ -351,7 +409,7 @@ async function doEmbed(){
 
   const payloadFile = $("file-payload").files[0] || null;
   const carriers = Array.from($("files-carriers").files || []);
-  const key = $("enc-key").value.trim();
+  const keyInfo = await getEmbedKeyRaw();
   const prefix = ($("out-prefix").value || "encoded_").trim();
 
   if (!payloadFile) throw new Error("Pick a file to embed.");
@@ -361,14 +419,14 @@ async function doEmbed(){
   let payload = await fileToBytes(payloadFile);
   let flags = 0;
 
-  if (key){
-    log("Encryption enabled (AES-GCM).");
-    payload = await aesGcmEncrypt(payload, key);
-    flags |= FLAG_ENCRYPTED;
-    log(`Encrypted payload size: ${payload.length} bytes`);
-  }else{
-    log("Encryption: off.");
-  }
+  if (keyInfo.keyRaw){
+  log(`Encryption enabled (AES-GCM). Key fingerprint: ${keyInfo.fingerprint}`);
+  payload = await aesGcmEncrypt(payload, keyInfo.keyRaw);
+  flags |= FLAG_ENCRYPTED;
+  log(`Encrypted payload size: ${payload.length} bytes`);
+}else{
+  log("Encryption: off.");
+}
 
   const totalLen = payload.length;
 
@@ -443,7 +501,7 @@ async function doExtract(){
   $("extract-summary").textContent = "";
 
   const encoded = Array.from($("files-encoded").files || []);
-  const key = $("dec-key").value.trim();
+  const keyInfo = await getExtractKeyRaw();
   const outName = ($("out-filename").value || "extracted.bin").trim();
 
   if (encoded.length === 0) throw new Error("Pick at least one encoded image.");
@@ -498,9 +556,9 @@ async function doExtract(){
 
   // Decrypt if needed
   if ((expected.flags & FLAG_ENCRYPTED) !== 0){
-    if (!key) throw new Error("This payload is encrypted. Provide the key.");
-    log("Decrypting (AES-GCM)...");
-    assembled = await aesGcmDecrypt(assembled, key);
+    if (!keyInfo.keyRaw) throw new Error("This payload is encrypted. Provide the key (base64 or key file).");
+    log(`Decrypting (AES-GCM). Key fingerprint: ${keyInfo.fingerprint}`);
+    assembled = await aesGcmDecrypt(assembled, keyInfo.keyRaw);
     log(`Decrypted output: ${assembled.length} bytes`);
   }
 
@@ -540,20 +598,81 @@ function setTab(which){
   }
 }
 
+async function updateKeyFingerprints(){
+  // embed
+  try{
+    const infoE = await getEmbedKeyRaw();
+    if ($("enc-key-fp")) $("enc-key-fp").textContent = infoE.keyRaw ? `Fingerprint: ${infoE.fingerprint}` : "Fingerprint: —";
+  }catch(e){
+    if ($("enc-key-fp")) $("enc-key-fp").textContent = `Fingerprint: ERROR`;
+  }
+
+  // extract
+  try{
+    const infoD = await getExtractKeyRaw();
+    if ($("dec-key-fp")) $("dec-key-fp").textContent = infoD.keyRaw ? `Fingerprint: ${infoD.fingerprint}` : "Fingerprint: —";
+  }catch(e){
+    if ($("dec-key-fp")) $("dec-key-fp").textContent = `Fingerprint: ERROR`;
+  }
+}
+
 function wire(){
   $("tab-embed").addEventListener("click", () => setTab("embed"));
   $("tab-extract").addEventListener("click", () => setTab("extract"));
   $("btn-clear-log").addEventListener("click", clearLog);
-  // Capacity live updates
+
+  // ---- Key fingerprint updater (embed + extract) ----
+  async function updateKeyFingerprints(){
+    // Embed fingerprint
+    try{
+      const infoE = await getEmbedKeyRaw(); // { keyRaw, fingerprint }
+      const el = $("enc-key-fp");
+      if (el) el.textContent = infoE.keyRaw ? `Fingerprint: ${infoE.fingerprint}` : "Fingerprint: —";
+    }catch(e){
+      const el = $("enc-key-fp");
+      if (el) el.textContent = "Fingerprint: ERROR";
+    }
+
+    // Extract fingerprint
+    try{
+      const infoD = await getExtractKeyRaw();
+      const el = $("dec-key-fp");
+      if (el) el.textContent = infoD.keyRaw ? `Fingerprint: ${infoD.fingerprint}` : "Fingerprint: —";
+    }catch(e){
+      const el = $("dec-key-fp");
+      if (el) el.textContent = "Fingerprint: ERROR";
+    }
+  }
+
+  // ---- Capacity live updates ----
   $("file-payload").addEventListener("change", () => { updateCapacityPanel(); });
   $("files-carriers").addEventListener("change", () => { updateCapacityPanel(); });
-  $("enc-key").addEventListener("input", () => { updateCapacityPanel(); });
 
+  // base64 key box still affects encryption + verdict
+  $("enc-key").addEventListener("input", () => { updateKeyFingerprints(); updateCapacityPanel(); });
+
+  // NEW: key derived from any file + salt (embed)
+  const encFile = $("enc-key-anyfile");
+  if (encFile) encFile.addEventListener("change", () => { updateKeyFingerprints(); updateCapacityPanel(); });
+
+  const encSalt = $("enc-key-salt");
+  if (encSalt) encSalt.addEventListener("input", () => { updateKeyFingerprints(); updateCapacityPanel(); });
+
+  //key derived from any file + salt (extract)
+  const decFile = $("dec-key-anyfile");
+  if (decFile) decFile.addEventListener("change", () => { updateKeyFingerprints(); });
+
+  const decSalt = $("dec-key-salt");
+  if (decSalt) decSalt.addEventListener("input", () => { updateKeyFingerprints(); });
+
+  // Generate base64 key
   $("btn-gen-key").addEventListener("click", async () => {
     const key = await cryptoGenerateKeyB64();
     $("enc-key").value = key;
     $("dec-key").value = key;
     log("Generated encryption key (base64, 32 bytes).");
+    updateKeyFingerprints();
+    updateCapacityPanel();
   });
 
   $("btn-embed").addEventListener("click", async () => {
@@ -581,8 +700,9 @@ function wire(){
   });
 
   log("Ready.");
+  updateKeyFingerprints();
   updateCapacityPanel();
-
 }
+
 
 wire();
