@@ -56,19 +56,6 @@
       </fieldset>
 
       <fieldset class="group">
-        <legend>Actions</legend>
-        <div class="row">
-          <button id="btn-embed" class="btn primary" type="button">Embed → Create Encoded Images</button>
-          <div id="embed-summary" class="status"></div>
-        </div>
-
-        <div class="row">
-          <label class="lbl">Downloads</label>
-          <div id="embed-downloads" class="downloads"></div>
-        </div>
-      </fieldset>
-      </fieldset>
-            <fieldset class="group">
         <legend>Capacity</legend>
 
         <div class="row">
@@ -96,10 +83,21 @@
           <div id="cap-verdict" class="status">—</div>
         </div>
       </fieldset>
+
       <fieldset class="group">
-      
+        <legend>Actions</legend>
+        <div class="row">
+          <button id="btn-embed" class="btn primary" type="button">Embed → Create Encoded Images</button>
+          <div id="embed-summary" class="status"></div>
+        </div>
+
+        <div class="row">
+          <label class="lbl">Downloads</label>
+          <div id="embed-downloads" class="downloads"></div>
+        </div>
+      </fieldset>
     </div>
-  
+
     <div id="panel-extract" class="panel">
       <fieldset class="group">
         <legend>Input</legend>
@@ -118,7 +116,9 @@
           <label class="lbl">Output filename</label>
           <input id="out-filename" class="inp" type="text" value="extracted.bin" />
         </div>
-      
+      </fieldset>
+
+      <fieldset class="group">
         <legend>Actions</legend>
         <div class="row">
           <button id="btn-extract" class="btn primary" type="button">Extract → Download File</button>
