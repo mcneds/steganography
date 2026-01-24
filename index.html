@@ -65,6 +65,18 @@
         </div>
 
         <div class="row">
+          <label class="lbl">Passphrase (less secure)</label>
+          <input id="enc-pass" class="inp" type="password" placeholder="type passphrase" />
+        </div>
+        
+        <div class="row">
+          <label class="lbl">Salt (recommended)</label>
+          <input id="enc-salt" class="inp" type="text" value="stego-tool" />
+          <div id="enc-key-fp" class="status">Fingerprint: —</div>
+        </div>
+
+        
+        <div class="row">
           <label class="lbl">Output prefix</label>
           <input id="out-prefix" class="inp" type="text" value="encoded_" />
         </div>
@@ -146,6 +158,18 @@
           <div id="dec-key-fp" class="status">Fingerprint: —</div>
         </div>
 
+        <div class="row">
+          <label class="lbl">Passphrase</label>
+          <input id="dec-pass" class="inp" type="password" placeholder="same passphrase" />
+        </div>
+        
+        <div class="row">
+          <label class="lbl">Salt</label>
+          <input id="dec-salt" class="inp" type="text" value="stego-tool" />
+          <div id="dec-key-fp" class="status">Fingerprint: —</div>
+        </div>
+
+        
         <div class="row">
           <label class="lbl">Output filename</label>
           <input id="out-filename" class="inp" type="text" value="extracted.bin" />
