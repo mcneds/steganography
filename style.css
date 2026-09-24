@@ -107,6 +107,7 @@ body{
 
 .inp{
   width: 100%;
+  min-width: 0;
   padding: 6px 8px;
   background: #fff;
   border: 2px solid var(--shadow);
@@ -193,3 +194,74 @@ body{
   background: #fff4d6;
 }
 
+@media (max-width: 640px){
+  body{
+    padding: 6px;
+  }
+
+  .window{
+    padding: 6px;
+  }
+
+  .subtitle{
+    line-height: 1.35;
+  }
+
+  .tabs{
+    flex-wrap: wrap;
+  }
+
+  .tabs .spacer{
+    display: none;
+  }
+
+  .tabs > .btn{
+    margin-left: auto;
+  }
+
+  .panel{
+    padding-top: 6px;
+  }
+
+  .group{
+    padding: 8px;
+  }
+
+  .row{
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    align-items: stretch;
+    margin: 12px 0;
+  }
+
+  .row > *{
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .inp{
+    font-size: 16px;
+    min-height: 40px;
+  }
+
+  .row > .btn{
+    width: 100%;
+    min-height: 40px;
+  }
+
+  .note,
+  .downloads{
+    grid-column: auto;
+  }
+
+  .status{
+    width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .log{
+    height: 180px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
